@@ -25,6 +25,7 @@ abstract class IntegrationSpec extends Specification implements ClockFixture {
 
     static {
         PostgreSQL.startContainer()
+        ElasticSearch.startContainer()
     }
 
     @Autowired

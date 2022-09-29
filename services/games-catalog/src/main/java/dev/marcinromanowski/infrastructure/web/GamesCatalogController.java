@@ -21,8 +21,12 @@ public class GamesCatalogController {
 
     @GetMapping
     List<GameDetailsDto> getGamesCatalog(@RequestParam(required = false) String search, Pageable pageable) {
-        val query = new GamesCatalogFacade.GetGamesCatalogQuery(search, pageable);
-        return gamesCatalogFacade.getGamesCatalog(query);
+        if (search != null) {
+            val query = new GamesCatalogFacade.FindGamesCatalogQuery(search, pageable);
+            return gamesCatalogFacade.findGamesCatalogBy(query);
+        }
+
+        return gamesCatalogFacade.getGamesCatalog(pageable);
     }
 
 }

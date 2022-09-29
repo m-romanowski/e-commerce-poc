@@ -21,6 +21,10 @@ dependencies {
     implementation 'commons-codec:commons-codec:1.15'
     implementation 'javax.validation:validation-api:2.0.1.Final'
     implementation 'org.hibernate.validator:hibernate-validator:6.1.5.Final'
+    implementation 'org.hibernate:hibernate-search-orm:5.11.10.Final'
+    implementation 'org.hibernate:hibernate-search-elasticsearch:5.11.10.Final'
+    implementation 'org.elasticsearch.client:elasticsearch-rest-client:5.6.16'
+    implementation 'org.elasticsearch.client:elasticsearch-rest-client-sniffer:5.6.16'
 
     runtimeOnly 'org.postgresql:postgresql'
     compileOnly "org.projectlombok:lombok:$lombokVersion"
@@ -34,7 +38,8 @@ dependencies {
     testImplementation platform("org.spockframework:spock-bom:$spockVersion")
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.spockframework:spock-spring'
-    testImplementation 'org.testcontainers:postgresql:1.17.3'
+    testImplementation 'org.testcontainers:postgresql:1.17.4'
+    testImplementation 'org.testcontainers:elasticsearch:1.17.4'
     testImplementation 'com.auth0:java-jwt:3.19.2'
 }
 

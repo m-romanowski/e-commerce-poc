@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.search.annotations.Field;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import javax.persistence.*;
@@ -116,10 +117,11 @@ class GameDraftEntity {
     @GeneratedValue
     @Column(name = "id")
     private UUID id;
+    @Field
     private String title;
     private String producer;
-    @Column(name = "based_on_game_id")
-    private UUID basedOnGameId;
+    @Column(name = "based_on_id")
+    private UUID basedOn;
     // TODO: include price
 //    @OneToMany(mappedBy = "gameDraft")
 //    private Set<GamePriceEntity> prices;
@@ -134,7 +136,7 @@ class GameDraftEntity {
     }
 
     GameDraftDetails toGameDetails() {
-        return GameDraftDetails.restoreFrom(id, basedOnGameId, title, producer);
+        return GameDraftDetails.restoreFrom(id, basedOn, title, producer);
     }
 
 }

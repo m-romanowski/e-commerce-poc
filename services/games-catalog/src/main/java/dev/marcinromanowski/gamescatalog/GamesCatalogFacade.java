@@ -2,18 +2,21 @@ package dev.marcinromanowski.gamescatalog;
 
 import dev.marcinromanowski.gamescatalog.dto.GameDetailsDto;
 import dev.marcinromanowski.gamescatalog.dto.GameDraftDetailsDto;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
 import lombok.val;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class GamesCatalogFacade {
 
-    private final GamesCatalogService gamesCatalogService;
+    GamesCatalogService gamesCatalogService;
+    GamesCatalogSearchService gamesCatalogSearchService;
 
     public GameDraftDetailsDto createNewGameDraft(AddGameToCatalogCommand command) {
         val newGameDetails = GameDraftDetails.createNew(command.title(), command.producer());
@@ -38,6 +41,10 @@ public class GamesCatalogFacade {
         gamesCatalogService.deleteGameDraft(draftId);
     }
 
+    public UUID publishGameToCatalog(UUID draftId) {
+        return gamesCatalogService.publishGameToCatalog(draftId);
+    }
+
     public void deleteGameFromCatalog(UUID gameId) {
         gamesCatalogService.deleteGameFromCatalog(gameId);
     }
@@ -48,41 +55,27 @@ public class GamesCatalogFacade {
                 .toList();
     }
 
-    public List<GameDetailsDto> getGamesCatalog(GetGamesCatalogQuery query) {
-        List<GameDetails> foundCatalog = query.getTitlePattern().isEmpty()
-                ? gamesCatalogService.getGamesCatalog(query.pageable())
-                : gamesCatalogService.searchGamesByTitleCatalog(query.titlePattern(), query.pageable());
-        return foundCatalog.stream()
+    public List<GameDetailsDto> getGamesCatalog(Pageable pageable) {
+        return gamesCatalogService.getGamesCatalog(pageable).stream()
                 .map(GameDetails::toDto)
                 .toList();
     }
 
-    public UUID publishGameToCatalog(UUID draftId) {
-        return gamesCatalogService.publishGameToCatalog(draftId);
+    public List<GameDetailsDto> findGamesCatalogBy(FindGamesCatalogQuery query) {
+        return gamesCatalogSearchService.findAllContainingTitle(query.titlePattern(), query.pageable()).stream()
+                .map(GameDetails::toDto)
+                .toList();
     }
 
-    public record AddGameToCatalogCommand(
-            String title,
-            String producer) {
-
-    }
-
-    public record ModifyGameFromCatalogCommand(
-            UUID draftId,
-            String title,
-            String producer) {
+    public record AddGameToCatalogCommand(String title, String producer) {
 
     }
 
-    public record GetGamesCatalogQuery(String titlePattern, Pageable pageable) {
+    public record ModifyGameFromCatalogCommand(UUID draftId, String title, String producer) {
 
-        public GetGamesCatalogQuery(Pageable pageable) {
-            this(null, pageable);
-        }
+    }
 
-        Optional<String> getTitlePattern() {
-            return Optional.ofNullable(titlePattern);
-        }
+    public record FindGamesCatalogQuery(String titlePattern, Pageable pageable) {
 
     }
 

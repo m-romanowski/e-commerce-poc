@@ -5,6 +5,7 @@ import dev.marcinromanowski.common.Price
 import dev.marcinromanowski.gamescatalog.dto.GameDetailsDto
 import dev.marcinromanowski.gamescatalog.exception.CannotFindGameDraftException
 import dev.marcinromanowski.gamescatalog.exception.GamesCatalogInconsistencyStateException
+import org.hibernate.search.jpa.FullTextEntityManager
 import org.springframework.data.domain.Pageable
 import spock.lang.Specification
 
@@ -18,7 +19,7 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
         def gamesCatalogDraftsRepository = new InMemoryGamesCatalogDraftsRepository()
         def gamesCatalogRepository = new InMemoryGamesCatalogRepository()
         def configuration = new GamesCatalogConfiguration()
-        gamesCatalogFacade = configuration.gamesCatalogFacade(clock(), gamesCatalogDraftsRepository, gamesCatalogRepository)
+        gamesCatalogFacade = configuration.gamesCatalogFacade(clock(), Mock(FullTextEntityManager), gamesCatalogDraftsRepository, gamesCatalogRepository)
     }
 
     def "New game (not existing) should be marked as a draft"() {
@@ -42,7 +43,7 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
             }
         and: "game is not published to catalog"
             gamesCatalogFacade
-                    .getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged()))
+                    .getGamesCatalog(Pageable.unpaged())
                     .isEmpty()
     }
 
@@ -81,7 +82,7 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
         when: "user publishes his draft"
             gamesCatalogFacade.publishGameToCatalog(drafts[0].id())
         then: "published game is visible in catalog"
-            verifyAll(gamesCatalogFacade.getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged()))) {
+            verifyAll(gamesCatalogFacade.getGamesCatalog(Pageable.unpaged())) {
                 it.size() == 1
                 it[0].id() != null
                 it[0].title() == addGameDraftCommand.title()
@@ -101,14 +102,14 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
 
         expect: "there is only one game in catalog"
             gamesCatalogFacade
-                    .getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged()))
+                    .getGamesCatalog(Pageable.unpaged())
                     .size() == 1
 
         when: "user tries to delete game from catalog"
             gamesCatalogFacade.deleteGameFromCatalog(gameDetails.id())
         then: "game is not accessible from catalog"
             gamesCatalogFacade
-                    .getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged()))
+                    .getGamesCatalog(Pageable.unpaged())
                     .isEmpty()
         and: "draft still exists"
             gamesCatalogFacade.getAllDrafts().size() == 1
@@ -122,7 +123,7 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
         expect: "there is one game in catalog"
             def drafts = gamesCatalogFacade.getAllDrafts()
             drafts.size() == 1
-            gamesCatalogFacade.getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged())).size() == 1
+            gamesCatalogFacade.getGamesCatalog(Pageable.unpaged()).size() == 1
 
         when: "user tries remove live draft"
             gamesCatalogFacade.deleteGameDraft(drafts[0].id())
@@ -168,7 +169,7 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
         def draft = gamesCatalogFacade.createNewGameDraft(command)
         def gameId = gamesCatalogFacade.publishGameToCatalog(draft.id())
         def gameDetails = gamesCatalogFacade
-                .getGamesCatalog(new GamesCatalogFacade.GetGamesCatalogQuery(Pageable.unpaged()))
+                .getGamesCatalog(Pageable.unpaged())
                 .find {
                     it.id() == gameId
                 }
@@ -236,13 +237,6 @@ class GamesCatalogFacadeSpec extends Specification implements ClockFixture {
         List<GameDetails> findAll(Pageable pageable) {
             return gameDetailsCollector.values()
                     .collect()
-        }
-
-        @Override
-        List<GameDetails> findAllContainingTitle(String title, Pageable pageable) {
-            return gameDetailsCollector.values().findAll {
-                it.draftDetails.title.containsIgnoreCase(title)
-            }
         }
 
         @Override

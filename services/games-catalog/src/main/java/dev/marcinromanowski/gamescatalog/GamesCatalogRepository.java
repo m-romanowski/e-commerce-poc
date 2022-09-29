@@ -4,10 +4,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.search.annotations.Indexed;
+import org.hibernate.search.annotations.IndexedEmbedded;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.PagingAndSortingRepository;
-import org.springframework.data.repository.query.Param;
 
 import javax.persistence.*;
 import java.time.Instant;
@@ -19,15 +19,12 @@ interface GamesCatalogRepository {
     GameDetails save(GameDetails gameDetails);
     Optional<GameDetails> findById(UUID id);
     List<GameDetails> findAll(Pageable pageable);
-    List<GameDetails> findAllContainingTitle(String title, Pageable pageable);
     void deleteById(UUID gameId);
     Optional<GameDetails> findByDraftId(UUID draftId);
 }
 
-
 interface GamesCatalogCrudRepository extends PagingAndSortingRepository<GameEntity, UUID> {
-    @Query(value = "SELECT gc.id, gc.published_at, gc.live_draft_id FROM game_catalog gc INNER JOIN game_draft_catalog gdc ON gc.live_draft_id = gdc.id WHERE UPPER(gdc.title) LIKE UPPER(CONCAT('%', :title, '%'))", nativeQuery = true)
-    List<GameEntity> findAllContainingTitle(@Param("title") String title);
+
 }
 
 @RequiredArgsConstructor
@@ -55,13 +52,6 @@ class JpaGamesCatalogRepository implements GamesCatalogRepository {
     }
 
     @Override
-    public List<GameDetails> findAllContainingTitle(String title, Pageable pageable) {
-        return gamesCatalogCrudRepository.findAllContainingTitle(title).stream()
-                .map(GameEntity::toGameDetails)
-                .toList();
-    }
-
-    @Override
     public void deleteById(UUID gameId) {
         gamesCatalogCrudRepository.deleteById(gameId);
     }
@@ -76,6 +66,7 @@ class JpaGamesCatalogRepository implements GamesCatalogRepository {
 
 @Data
 @Entity
+@Indexed
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "game_catalog")
@@ -88,6 +79,7 @@ class GameEntity {
     private Instant publishedAt;
     @OneToOne
     @JoinColumn(name = "live_draft_id", referencedColumnName = "id")
+    @IndexedEmbedded(includePaths = {"title"})
     private GameDraftEntity liveDraft;
 
     static GameEntity from(GameDetails gameDetails) {

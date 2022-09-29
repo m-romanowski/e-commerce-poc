@@ -39,10 +39,6 @@ class GamesCatalogService {
         return gamesCatalogRepository.findAll(pageable);
     }
 
-    List<GameDetails> searchGamesByTitleCatalog(String title, Pageable pageable) {
-        return gamesCatalogRepository.findAllContainingTitle(title, pageable);
-    }
-
     UUID publishGameToCatalog(UUID draftId) {
         return gamesCatalogDraftsRepository.findById(draftId)
                 .map(gameDraftDetails -> GameDetails.from(gameDraftDetails.getBasedOnGameId(), gameDraftDetails, clock.instant()))

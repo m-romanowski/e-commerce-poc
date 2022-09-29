@@ -24,6 +24,7 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements AuthFixture {
     }
 
     // TODO: removal endpoints
+    // TODO: pagination test
     def "Acceptance test"() {
         given: "users access tokens"
             def user1AccessToken = generateAdminToken(user1)
