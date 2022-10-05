@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language}" lang="en">
+  <head>
+    <title th:text="#{email.invoice.title}"></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="icon" th:href="@{|${baseUrl}/favicon.ico|}" />
+  </head>
+  <body>
+    <p th:text="#{email.invoice.user(${data.userId})}"></p>
+    <p th:text="#{email.invoice.text1}"></p>
+    <p th:text="#{email.invoice.download.url(${data.downloadUrl})}"></p>
+    <p>
+      <span th:text="#{email.regards}"></span>
+      <br />
+      <em th:text="#{email.signature}"></em>
+    </p>
+  </body>
+</html>
