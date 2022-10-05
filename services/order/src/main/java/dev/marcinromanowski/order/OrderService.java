@@ -1,7 +1,7 @@
 package dev.marcinromanowski.order;
 
 import dev.marcinromanowski.invoice.InvoiceFacade;
-import dev.marcinromanowski.invoice.dto.InvoiceOrderDto;
+import dev.marcinromanowski.invoice.dto.OrderDetailsDto;
 import dev.marcinromanowski.order.dto.OrderDto;
 import dev.marcinromanowski.order.exception.IllegalOrderStateException;
 import dev.marcinromanowski.order.exception.OrderInconsistencyStateException;
@@ -74,7 +74,7 @@ class OrderService {
                 })
                 .flatMap(orderRepository::save)
                 .map(this::toInvoiceOrderFrom)
-                .flatMap(invoiceFacade::generateInvoiceForOrder);
+                .flatMap(invoiceFacade::createInvoiceFor);
     }
 
     Mono<Void> paymentCancel(String paymentId) {
@@ -90,11 +90,11 @@ class OrderService {
                 .then();
     }
 
-    private InvoiceOrderDto toInvoiceOrderFrom(Order order) {
+    private OrderDetailsDto toInvoiceOrderFrom(Order order) {
         val products = order.getProducts().stream()
-                .map(product -> new InvoiceOrderDto.ProductDto(product.getId(), product.getName(), product.getAmount(), product.getPrice()))
+                .map(product -> new OrderDetailsDto.ProductDetailsDto(product.getId(), product.getName(), product.getAmount(), product.getPrice()))
                 .collect(Collectors.toUnmodifiableSet());
-        return new InvoiceOrderDto(order.getId(), order.getUserId(), products);
+        return new OrderDetailsDto(order.getId(), order.getUserId(), products);
     }
 
 }

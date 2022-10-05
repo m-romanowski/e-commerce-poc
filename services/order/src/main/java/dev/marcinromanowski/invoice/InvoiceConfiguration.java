@@ -1,11 +1,19 @@
 package dev.marcinromanowski.invoice;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.val;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Clock;
+
 @Configuration
 class InvoiceConfiguration {
+
+    @Bean
+    InvoiceRepository invoiceRepository(InvoiceCrudRepository invoiceCrudRepository) {
+        return new JpaInvoiceRepository(invoiceCrudRepository);
+    }
 
     @Bean
     InvoiceRepositoryOutbox invoiceRepositoryOutbox(ObjectMapper objectMapper, InvoiceCrudRepositoryOutbox invoiceCrudRepositoryOutbox) {
@@ -13,17 +21,8 @@ class InvoiceConfiguration {
     }
 
     @Bean
-    InvoiceService invoiceService(InvoiceRepositoryOutbox invoiceRepositoryOutbox) {
-        return new InvoiceService(invoiceRepositoryOutbox);
-    }
-
-    @Bean
-    InvoiceCommandListener invoiceCommandListener(ObjectMapper objectMapper, InvoiceService invoiceService) {
-        return new DummyInvoiceCommandListener(objectMapper, invoiceService);
-    }
-
-    @Bean
-    InvoiceFacade invoiceFacade(InvoiceService invoiceService) {
+    InvoiceFacade invoiceFacade(Clock clock, InvoiceRepository invoiceRepository, InvoiceRepositoryOutbox invoiceRepositoryOutbox) {
+        val invoiceService = new InvoiceService(clock, invoiceRepository, invoiceRepositoryOutbox);
         return new InvoiceFacade(invoiceService);
     }
 
