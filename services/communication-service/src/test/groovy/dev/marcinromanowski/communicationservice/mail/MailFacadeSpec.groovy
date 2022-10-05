@@ -31,7 +31,7 @@ class MailFacadeSpec extends Specification {
     def "Invoice mail should be send to the user"() {
         given: "email command"
             messageSource.getMessage("email.invoice.title", null, Locale.forLanguageTag("pl")) >> "Invoice subject"
-            iTemplateEngine.process("email/invoice-email", _ as IContext) >> "Invoice body"
+            iTemplateEngine.process("invoice-email", _ as IContext) >> "Invoice body"
 
             def invoiceMailCommand = new SendInvoiceToUserMailCommand(
                     UUID.randomUUID(),
