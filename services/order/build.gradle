@@ -13,15 +13,14 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-data-r2dbc'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'org.springframework.cloud:spring-cloud-starter'
     implementation 'javax.validation:validation-api:2.0.1.Final'
     implementation 'org.hibernate.validator:hibernate-validator:6.1.5.Final'
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-server:3.1.4'
+    implementation 'io.r2dbc:r2dbc-postgresql:0.8.13.RELEASE'
 
-    runtimeOnly 'org.postgresql:postgresql'
     compileOnly "org.projectlombok:lombok:$lombokVersion"
     annotationProcessor "org.projectlombok:lombok:$lombokVersion"
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
@@ -29,7 +28,6 @@ dependencies {
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
     }
-    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation platform("org.spockframework:spock-bom:$spockVersion")
     testImplementation 'org.spockframework:spock-core'
     testImplementation 'org.spockframework:spock-spring'
@@ -40,6 +38,7 @@ dependencies {
 }
 
 tasks.named('test') {
+    jvmArgs(['--enable-preview'])
     useJUnitPlatform()
 }
 

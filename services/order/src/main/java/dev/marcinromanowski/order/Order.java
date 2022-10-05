@@ -1,15 +1,20 @@
 package dev.marcinromanowski.order;
 
+import dev.marcinromanowski.order.events.OrderCreated;
+import dev.marcinromanowski.order.events.OrderEvent;
+import dev.marcinromanowski.order.events.OrderFailed;
+import dev.marcinromanowski.order.events.OrderSucceeded;
 import lombok.AccessLevel;
 import lombok.Builder;
+import lombok.RequiredArgsConstructor;
 import lombok.Value;
-import lombok.experimental.NonFinal;
 import lombok.val;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 sealed interface Order permits PendingOrder, SucceededOrder, FailedOrder {
@@ -17,48 +22,40 @@ sealed interface Order permits PendingOrder, SucceededOrder, FailedOrder {
     String getUserId();
     BigDecimal getTotal();
     Set<Product> getProducts();
+    OrderEvent toEvent();
 }
 
-@Value
-class Product {
-
-    UUID id;
-    String name;
-    int amount;
-    BigDecimal price;
-
-    BigDecimal getTotal() {
-        return price.multiply(new BigDecimal(amount));
-    }
+record Product(UUID id) {
 
 }
 
 @Value
-@NonFinal
+@RequiredArgsConstructor(staticName = "from")
 @Builder(access = AccessLevel.PRIVATE, toBuilder = true)
-non-sealed class PendingOrder implements Order {
+class PendingOrder implements Order {
 
     UUID id;
     String userId;
-    String paymentId;
+    String pendingPaymentId;
     BigDecimal total;
     Set<Product> products;
 
-    static PendingOrder from(String userId, List<Product> products) {
+    static PendingOrder create(Supplier<UUID> idSupplier, String userId, List<OrderProductDetails> products) {
         val totalPrice = products.stream()
-                .map(Product::getTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            .map(OrderProductDetails::getTotal)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
         return PendingOrder.builder()
-                .userId(userId)
-                .total(totalPrice)
-                .products(products.stream().collect(Collectors.toUnmodifiableSet()))
-                .build();
+            .id(idSupplier.get())
+            .userId(userId)
+            .total(totalPrice)
+            .products(products.stream().map(productDetails -> new Product(productDetails.getId())).collect(Collectors.toUnmodifiableSet()))
+            .build();
     }
 
-    PendingOrder paymentInitialized(String paymentId) {
+    PendingOrder withPendingPayment(String paymentId) {
         return this.toBuilder()
-                .paymentId(paymentId)
-                .build();
+            .pendingPaymentId(paymentId)
+            .build();
     }
 
     SucceededOrder succeeded(String paymentId) {
@@ -69,11 +66,15 @@ non-sealed class PendingOrder implements Order {
         return new FailedOrder(this);
     }
 
+    @Override
+    public OrderEvent toEvent() {
+        return new OrderCreated(id, userId, total, products.stream().map(Product::id).collect(Collectors.toUnmodifiableSet()));
+    }
+
 }
 
 @Value
-@NonFinal
-non-sealed class SucceededOrder implements Order {
+class SucceededOrder implements Order {
 
     PendingOrder pendingOrder;
     String paymentId;
@@ -98,11 +99,15 @@ non-sealed class SucceededOrder implements Order {
         return pendingOrder.getProducts();
     }
 
+    @Override
+    public OrderEvent toEvent() {
+        return new OrderSucceeded(getId(), paymentId);
+    }
+
 }
 
 @Value
-@NonFinal
-non-sealed class FailedOrder implements Order {
+class FailedOrder implements Order {
 
     PendingOrder pendingOrder;
 
@@ -124,6 +129,11 @@ non-sealed class FailedOrder implements Order {
     @Override
     public Set<Product> getProducts() {
         return pendingOrder.getProducts();
+    }
+
+    @Override
+    public OrderEvent toEvent() {
+        return new OrderFailed(getId());
     }
 
 }

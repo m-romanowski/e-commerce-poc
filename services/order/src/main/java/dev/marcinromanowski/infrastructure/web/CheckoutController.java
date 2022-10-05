@@ -29,7 +29,7 @@ public class CheckoutController {
 
     @PostMapping(value = "/cancel")
     public Mono<Void> paymentCancel(@RequestParam String paymentId) {
-        return orderFacade.paymentCancel(new PaymentDto(paymentId));
+        return orderFacade.paymentCanceled(new PaymentDto(paymentId));
     }
 
 }

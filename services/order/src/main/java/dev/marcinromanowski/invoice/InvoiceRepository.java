@@ -6,12 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Mono;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -25,7 +24,7 @@ interface InvoiceCrudRepository extends ReactiveCrudRepository<InvoiceEntity, UU
 
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-class JpaInvoiceRepository implements InvoiceRepository {
+class R2DBCInvoiceRepository implements InvoiceRepository {
 
     InvoiceCrudRepository invoiceCrudRepository;
 
@@ -38,7 +37,6 @@ class JpaInvoiceRepository implements InvoiceRepository {
 }
 
 @Data
-@Entity
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "order_invoice")

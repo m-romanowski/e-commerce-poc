@@ -1,10 +1,19 @@
 package dev.marcinromanowski.order;
 
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.val;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import javax.persistence.*;
 import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
@@ -19,68 +28,84 @@ interface OrderCrudRepository extends ReactiveCrudRepository<OrderEntity, UUID> 
     Mono<OrderEntity> findByPaymentId(String id);
 }
 
-@RequiredArgsConstructor
-class JpaOrderRepository implements OrderRepository {
+interface OrderProductsCrudRepository extends ReactiveCrudRepository<OrderProductsEntity, UUID> {
+    Flux<OrderProductsEntity> findAllByOrderId(UUID orderId);
+}
 
-    private final OrderCrudRepository orderCrudRepository;
+// TODO: R2DBC doesnt support relationships (https://github.com/spring-projects/spring-data-r2dbc/issues/356), its a workaround to saving "many"
+//  objects and then the "one". Relations are stored in another table. Another solution might be use JPA with custom thread poll - I need to test
+//  which solution is better of performance.
+@RequiredArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+class R2DBCOrderRepository implements OrderRepository {
+
+    OrderCrudRepository orderCrudRepository;
+    OrderProductsCrudRepository orderProductsCrudRepository;
 
     @Override
     public Mono<Order> save(Order order) {
-        return orderCrudRepository.save(OrderEntity.from(order))
-                .then(Mono.just(order));
+        return Mono.defer(() ->
+            Flux.fromIterable(order.getProducts())
+                .flatMap(product -> orderProductsCrudRepository.save(new OrderProductsEntity(UUID.randomUUID(), order.getId(), product.id())))
+                .collectList()
+                .flatMap(ignored -> orderCrudRepository.save(OrderEntity.from(order)))
+                .map(OrderEntity::toOrder)
+        );
     }
 
     @Override
     public Mono<Order> findByPaymentId(String paymentId) {
-        return orderCrudRepository.findByPaymentId(paymentId)
-                .map(OrderEntity::toOrder);
+        return Mono.defer(() ->
+            orderCrudRepository.findByPaymentId(paymentId)
+                .flatMap(orderEntity ->
+                    orderProductsCrudRepository.findAllByOrderId(orderEntity.getId())
+                        .collectList()
+                        .flatMap(orderProducts -> {
+                            val productsIds = orderProducts.stream()
+                                .map(ProductEntity::from)
+                                .collect(Collectors.toUnmodifiableSet());
+                            orderEntity.setProducts(productsIds);
+                            return Mono.just(orderEntity);
+                        })
+                )
+                .map(OrderEntity::toOrder)
+        );
     }
 
 }
 
 @Data
-@Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "order_product")
+@Table(name = "product")
 class ProductEntity {
 
     @Id
     UUID id;
-    String name;
-    int amount;
-    BigDecimal price;
 
-    static ProductEntity from(Product product) {
-        return new ProductEntity(product.getId(), product.getName(), product.getAmount(), product.getPrice());
+    static ProductEntity from(OrderProductsEntity orderProducts) {
+        return new ProductEntity(orderProducts.getProductId());
     }
 
     Product toProduct() {
-        return new Product(id, name, amount, price);
+        return new Product(id);
     }
 
 }
 
 @Data
-@Entity
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "order")
 class OrderEntity {
 
     @Id
-    @GeneratedValue
     private UUID id;
-    @Column(name = "user_id")
     private String userId;
     private BigDecimal total;
-    @Enumerated(value = EnumType.STRING)
     private OrderStatus status;
-    @Column(name = "payment_id")
     private String paymentId;
-    @OneToMany(cascade = CascadeType.ALL)
-    @JoinColumn(name = "product_id", referencedColumnName = "id")
-    @Column(name = "product_id")
+    @Transient
     private Set<ProductEntity> products;
 
     private static OrderStatus getStatusFor(Order order) {
@@ -100,25 +125,21 @@ class OrderEntity {
     }
 
     static OrderEntity from(Order order) {
-        val productsEntities = order.getProducts()
-                .stream()
-                .map(ProductEntity::from)
-                .collect(Collectors.toUnmodifiableSet());
         return new OrderEntity(
-                order.getId(),
-                order.getUserId(),
-                order.getTotal(),
-                getStatusFor(order),
-                getPaymentIdFor(order),
-                productsEntities
+            order.getId(),
+            order.getUserId(),
+            order.getTotal(),
+            getStatusFor(order),
+            getPaymentIdFor(order),
+            Set.of()
         );
     }
 
     Order toOrder() {
         val productsCollection = products.stream()
-                .map(ProductEntity::toProduct)
-                .collect(Collectors.toUnmodifiableSet());
-        val pendingOrder = new PendingOrder(id, userId, paymentId, total, productsCollection);
+            .map(ProductEntity::toProduct)
+            .collect(Collectors.toUnmodifiableSet());
+        val pendingOrder = PendingOrder.from(id, userId, paymentId, total, productsCollection);
         return switch (status) {
             case PENDING -> pendingOrder;
             case SUCCEEDED -> new SucceededOrder(pendingOrder, paymentId);
@@ -131,5 +152,18 @@ class OrderEntity {
         SUCCEEDED,
         FAILED
     }
+
+}
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "order_product")
+class OrderProductsEntity {
+
+    @Id
+    UUID id;
+    UUID orderId;
+    UUID productId;
 
 }

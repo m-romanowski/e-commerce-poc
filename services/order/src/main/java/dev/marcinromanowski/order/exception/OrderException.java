@@ -6,4 +6,8 @@ public class OrderException extends RuntimeException {
         super(message);
     }
 
+    public OrderException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

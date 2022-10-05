@@ -15,86 +15,83 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 class OrderService {
 
+    Supplier<UUID> idSupplier;
     ProductFacade productFacade;
     OrderRepository orderRepository;
+    OrderOutboxRepository orderOutboxRepository;
     PaymentService paymentService;
     InvoiceFacade invoiceFacade;
 
     @Transactional
     public Mono<String> processOrder(OrderDto orderDto) {
         return fetchProductsDetails(orderDto.products())
-                .collectList()
-                .flatMap(products -> {
-                    val pendingOrder = PendingOrder.from(orderDto.userId(), products);
-                    val paymentResponse = paymentService.getApprovalLink(pendingOrder);
-                    return orderRepository.save(pendingOrder.paymentInitialized(paymentResponse.id()))
-                            .then(Mono.just(paymentResponse.approvalLink()));
-                });
+            .collectList()
+            .flatMap(products -> {
+                val pendingOrder = PendingOrder.create(idSupplier, orderDto.userId(), products);
+                val paymentResponse = paymentService.getApprovalLink(pendingOrder);
+                return orderRepository.save(pendingOrder.withPendingPayment(paymentResponse.id()))
+                    .flatMap(order -> orderOutboxRepository.save(order.toEvent()))
+                    .flatMap(ignored -> Mono.just(paymentResponse.approvalLink()));
+            });
     }
 
-    private Flux<Product> fetchProductsDetails(Set<OrderDto.ProductDto> products) {
+    private Flux<OrderProductDetails> fetchProductsDetails(Set<OrderDto.ProductDto> products) {
         if (products.isEmpty()) {
             return Flux.error(new IllegalOrderStateException());
         }
 
         return Flux.fromIterable(products)
-                .collectList()
-                .flatMapMany(productsToValidation -> {
-                    val groupedProducts = productsToValidation
-                            .stream()
-                            .collect(Collectors.toMap(OrderDto.ProductDto::id, Function.identity()));
-                    return productFacade.validateProducts(groupedProducts.keySet())
-                            .map(validatedProduct -> new Product(
-                                            validatedProduct.id(),
-                                            validatedProduct.name(),
-                                            groupedProducts.get(validatedProduct.id()).amount(),
-                                            validatedProduct.price()
-                                    )
-                            );
-                })
-                .onErrorMap(e -> new IllegalOrderStateException());
+            .collectList()
+            .flatMapMany(productsToValidation -> {
+                val groupedProducts = productsToValidation
+                    .stream()
+                    .collect(Collectors.toMap(OrderDto.ProductDto::id, Function.identity()));
+                return productFacade.validateProducts(groupedProducts.keySet())
+                    .map(validatedProduct -> new OrderProductDetails(validatedProduct, groupedProducts.get(validatedProduct.id()).amount()));
+            })
+            .onErrorMap(e -> new IllegalOrderStateException());
     }
 
     @Transactional
     public Mono<Void> paymentSucceeded(String paymentId) {
         return orderRepository.findByPaymentId(paymentId)
-                .flatMap(order -> {
-                    if (order instanceof PendingOrder pendingOrder) {
-                        return Mono.just(pendingOrder.succeeded(paymentId));
-                    }
+            .flatMap(order -> {
+                if (order instanceof PendingOrder pendingOrder) {
+                    return Mono.just(pendingOrder.succeeded(paymentId));
+                }
 
-                    return Mono.error(new OrderInconsistencyStateException(order.getId()));
-                })
-                .flatMap(orderRepository::save)
-                .map(this::toInvoiceOrderFrom)
-                .flatMap(invoiceFacade::createInvoiceFor);
+                return Mono.error(new OrderInconsistencyStateException(order.getId()));
+            })
+            .flatMap(order ->
+                orderRepository.save(order)
+                    .flatMap(savedOrder -> orderOutboxRepository.save(savedOrder.toEvent()).then(Mono.just(savedOrder)))
+            )
+            .map(order -> new OrderDetailsDto(order.getId(), order.getUserId()))
+            .flatMap(invoiceFacade::createInvoiceFor);
     }
 
-    Mono<Void> paymentCancel(String paymentId) {
+    @Transactional
+    public Mono<Void> paymentCanceled(String paymentId) {
         return orderRepository.findByPaymentId(paymentId)
-                .flatMap(order -> {
-                    if (order instanceof PendingOrder pendingOrder) {
-                        return Mono.just(pendingOrder.failed());
-                    }
+            .flatMap(order -> {
+                if (order instanceof PendingOrder pendingOrder) {
+                    return Mono.just(pendingOrder.failed());
+                }
 
-                    return Mono.error(new OrderInconsistencyStateException(order.getId()));
-                })
-                .flatMap(orderRepository::save)
-                .then();
-    }
-
-    private OrderDetailsDto toInvoiceOrderFrom(Order order) {
-        val products = order.getProducts().stream()
-                .map(product -> new OrderDetailsDto.ProductDetailsDto(product.getId(), product.getName(), product.getAmount(), product.getPrice()))
-                .collect(Collectors.toUnmodifiableSet());
-        return new OrderDetailsDto(order.getId(), order.getUserId(), products);
+                return Mono.error(new OrderInconsistencyStateException(order.getId()));
+            })
+            .flatMap(orderRepository::save)
+            .flatMap(order -> orderOutboxRepository.save(order.toEvent()))
+            .then();
     }
 
 }

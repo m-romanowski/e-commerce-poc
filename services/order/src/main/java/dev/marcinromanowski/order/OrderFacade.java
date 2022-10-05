@@ -20,8 +20,8 @@ public class OrderFacade {
         return orderService.paymentSucceeded(paymentDto.paymentId());
     }
 
-    public Mono<Void> paymentCancel(PaymentDto paymentDto) {
-        return orderService.paymentCancel(paymentDto.paymentId());
+    public Mono<Void> paymentCanceled(PaymentDto paymentDto) {
+        return orderService.paymentCanceled(paymentDto.paymentId());
     }
 
 }

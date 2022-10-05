@@ -16,13 +16,13 @@ class InvoiceService {
 
     Clock clock;
     InvoiceRepository invoiceRepository;
-    InvoiceRepositoryOutbox invoiceRepositoryOutbox;
+    InvoiceOutboxRepository invoiceOutboxRepository;
 
     @Transactional
     public Mono<Void> createInvoice(OrderDetailsDto orderDetails) {
         return invoiceRepository.save(Invoice.create(orderDetails.id(), orderDetails.userId(), clock.instant()))
             .flatMap(invoice -> Mono.just(new InvoiceCreated(invoice.getId(), orderDetails.id(), clock.instant())))
-            .flatMap(invoiceRepositoryOutbox::save)
+            .flatMap(invoiceOutboxRepository::save)
             .then();
     }
 

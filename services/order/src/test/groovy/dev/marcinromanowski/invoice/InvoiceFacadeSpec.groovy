@@ -19,19 +19,18 @@ class InvoiceFacadeSpec extends Specification implements ClockFixture {
 
     private InvoiceFacade invoiceFacade
     private InvoiceRepository invoiceRepository
-    private InvoiceRepositoryOutbox invoiceRepositoryOutbox
+    private InvoiceOutboxRepository invoiceRepositoryOutbox
 
     def setup() {
         def configuration = new InvoiceConfiguration()
         invoiceRepository = Mock(InvoiceRepository)
-        invoiceRepositoryOutbox = Mock(InvoiceRepositoryOutbox)
+        invoiceRepositoryOutbox = Mock(InvoiceOutboxRepository)
         invoiceFacade = configuration.invoiceFacade(clock(), invoiceRepository, invoiceRepositoryOutbox)
     }
 
     def "Invoice should be generated on request"() {
         given:
-            def productDetails = new OrderDetailsDto.ProductDetailsDto(UUID.randomUUID(), "Product name", 1, 1.0)
-            def orderDetails = new OrderDetailsDto(UUID.randomUUID(), "user", [productDetails] as Set)
+            def orderDetails = new OrderDetailsDto(UUID.randomUUID(), "user")
         and:
             1 * invoiceRepository.save({ Invoice invoice ->
                 invoice.id != null
@@ -63,12 +62,11 @@ class InvoiceFacadeSpec extends Specification implements ClockFixture {
             def objectMapper = Mock(ObjectMapper) {
                 writeValueAsString(_ as InvoiceEvent) >> { throw new JsonProcessingException("Mocked exception") }
             }
-            def invoiceCrudRepositoryOutbox = Mock(InvoiceCrudRepositoryOutbox)
-            def invoiceRepositoryOutbox = new JpaInvoiceRepositoryOutbox(objectMapper, invoiceCrudRepositoryOutbox)
+            def invoiceCrudRepositoryOutbox = Mock(InvoiceCrudOutboxRepository)
+            def invoiceRepositoryOutbox = new R2DBCInvoiceOutboxRepository(objectMapper, invoiceCrudRepositoryOutbox)
             def invoiceFacade = configuration.invoiceFacade(clock(), invoiceRepository, invoiceRepositoryOutbox)
         and:
-            def productDetails = new OrderDetailsDto.ProductDetailsDto(UUID.randomUUID(), "Product name", 1, 1.0)
-            def orderDetails = new OrderDetailsDto(UUID.randomUUID(), "user", [productDetails] as Set)
+            def orderDetails = new OrderDetailsDto(UUID.randomUUID(), "user")
 
         when:
             def verifier = StepVerifier.create(invoiceFacade.createInvoiceFor(orderDetails))

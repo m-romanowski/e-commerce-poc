@@ -11,36 +11,35 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.val;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Mono;
 
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
 import java.util.UUID;
 
-interface InvoiceRepositoryOutbox {
-    Mono<InvoiceEvent> save(InvoiceEvent command);
+interface InvoiceOutboxRepository {
+    Mono<InvoiceEvent> save(InvoiceEvent event);
 }
 
-interface InvoiceCrudRepositoryOutbox extends ReactiveCrudRepository<InvoiceOutboxEntity, UUID> {
+interface InvoiceCrudOutboxRepository extends ReactiveCrudRepository<InvoiceOutboxEntity, UUID> {
 
 }
 
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-class JpaInvoiceRepositoryOutbox implements InvoiceRepositoryOutbox {
+class R2DBCInvoiceOutboxRepository implements InvoiceOutboxRepository {
 
     ObjectMapper objectMapper;
-    InvoiceCrudRepositoryOutbox invoiceCrudRepositoryOutbox;
+    InvoiceCrudOutboxRepository invoiceCrudOutboxRepository;
 
     @Override
-    public Mono<InvoiceEvent> save(InvoiceEvent command) {
+    public Mono<InvoiceEvent> save(InvoiceEvent event) {
         try {
-            val serializedCommand = objectMapper.writeValueAsString(command);
-            val outboxEntity = new InvoiceOutboxEntity(command.getId(), serializedCommand, command.getType());
-            return invoiceCrudRepositoryOutbox.save(outboxEntity)
-                .then(Mono.just(command));
+            val serializedCommand = objectMapper.writeValueAsString(event);
+            val outboxEntity = new InvoiceOutboxEntity(event.getId(), serializedCommand, event.getType());
+            return invoiceCrudOutboxRepository.save(outboxEntity)
+                .then(Mono.just(event));
         } catch (JsonProcessingException e) {
             throw new CannotProcessInvoiceException(e);
         }
@@ -49,7 +48,6 @@ class JpaInvoiceRepositoryOutbox implements InvoiceRepositoryOutbox {
 }
 
 @Data
-@Entity
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "order_invoice_outbox")

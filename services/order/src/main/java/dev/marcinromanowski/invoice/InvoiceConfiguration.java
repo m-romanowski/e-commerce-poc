@@ -12,17 +12,17 @@ class InvoiceConfiguration {
 
     @Bean
     InvoiceRepository invoiceRepository(InvoiceCrudRepository invoiceCrudRepository) {
-        return new JpaInvoiceRepository(invoiceCrudRepository);
+        return new R2DBCInvoiceRepository(invoiceCrudRepository);
     }
 
     @Bean
-    InvoiceRepositoryOutbox invoiceRepositoryOutbox(ObjectMapper objectMapper, InvoiceCrudRepositoryOutbox invoiceCrudRepositoryOutbox) {
-        return new JpaInvoiceRepositoryOutbox(objectMapper, invoiceCrudRepositoryOutbox);
+    InvoiceOutboxRepository invoiceRepositoryOutbox(ObjectMapper objectMapper, InvoiceCrudOutboxRepository invoiceCrudOutboxRepository) {
+        return new R2DBCInvoiceOutboxRepository(objectMapper, invoiceCrudOutboxRepository);
     }
 
     @Bean
-    InvoiceFacade invoiceFacade(Clock clock, InvoiceRepository invoiceRepository, InvoiceRepositoryOutbox invoiceRepositoryOutbox) {
-        val invoiceService = new InvoiceService(clock, invoiceRepository, invoiceRepositoryOutbox);
+    InvoiceFacade invoiceFacade(Clock clock, InvoiceRepository invoiceRepository, InvoiceOutboxRepository invoiceOutboxRepository) {
+        val invoiceService = new InvoiceService(clock, invoiceRepository, invoiceOutboxRepository);
         return new InvoiceFacade(invoiceService);
     }
 
