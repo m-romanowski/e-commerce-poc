@@ -7,10 +7,13 @@ import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Mono;
 
+import javax.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -39,16 +42,22 @@ class R2DBCInvoiceRepository implements InvoiceRepository {
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "order_invoice")
+@Table(name = "invoice")
 class InvoiceEntity {
 
     @Id
-    UUID id;
-    UUID orderId;
-    Instant createdAt;
+    private UUID id;
+    @NotNull
+    @Column(value = "order_id")
+    private UUID orderId;
+    @NotNull
+    @Column(value = "created_at")
+    private Instant createdAt;
+    @Version
+    private Long version;
 
     static InvoiceEntity from(Invoice invoice) {
-        return new InvoiceEntity(invoice.getId(), invoice.getOrderId(), invoice.getCreatedAt());
+        return new InvoiceEntity(invoice.getId(), invoice.getOrderId(), invoice.getCreatedAt(), invoice.getVersion());
     }
 
 }

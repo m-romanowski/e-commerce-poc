@@ -7,5 +7,6 @@ import lombok.NoArgsConstructor;
 public class Profiles {
 
     public static final String INTEGRATION = "integration";
+    public static final String EXCEPT_INTEGRATION = "!integration";
 
 }

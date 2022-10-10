@@ -1,7 +1,5 @@
-package dev.marcinromanowski.product
+package dev.marcinromanowski.base
 
-import dev.marcinromanowski.base.MockWebServerSupplier
-import dev.marcinromanowski.base.RandomizerFixture
 import okhttp3.mockwebserver.MockResponse
 
 import static org.springframework.http.HttpHeaders.CONTENT_TYPE
@@ -15,7 +13,7 @@ trait MockedProductsService implements MockWebServerSupplier {
             {
                 "id": "$productId,
                 "name": "${UUID.randomUUID()}",
-                "price": "${RandomizerFixture.randomBigDecimal()}"
+                "price": "1.0"
             }
         """
     }

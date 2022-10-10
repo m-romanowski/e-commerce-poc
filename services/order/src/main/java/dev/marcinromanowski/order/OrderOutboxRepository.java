@@ -16,6 +16,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
 import reactor.core.publisher.Mono;
 
+import javax.validation.constraints.NotNull;
 import java.util.UUID;
 
 interface OrderOutboxRepository {
@@ -37,7 +38,7 @@ class R2DBCOrderOutboxRepository implements OrderOutboxRepository {
     public Mono<OrderEvent> save(OrderEvent event) {
         try {
             val serializedCommand = objectMapper.writeValueAsString(event);
-            val outboxEntity = new OrderOutboxEntity(event.getId(), serializedCommand, event.getType());
+            val outboxEntity = new OrderOutboxEntity(null, event.getId(), serializedCommand, event.getType());
             return invoiceCrudRepositoryOutbox.save(outboxEntity)
                 .then(Mono.just(event));
         } catch (JsonProcessingException e) {
@@ -54,8 +55,12 @@ class R2DBCOrderOutboxRepository implements OrderOutboxRepository {
 class OrderOutboxEntity {
 
     @Id
-    UUID id;
-    String payload;
-    String type;
+    private String id;
+    @NotNull
+    private UUID key;
+    @NotNull
+    private String payload;
+    @NotNull
+    private String type;
 
 }

@@ -5,6 +5,7 @@ import dev.marcinromanowski.order.dto.ApprovalLinkDto;
 import dev.marcinromanowski.order.dto.OrderDto;
 import dev.marcinromanowski.order.dto.PaymentDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -15,21 +16,21 @@ public class CheckoutController {
 
     private final OrderFacade orderFacade;
 
-    @PostMapping
+    @PostMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ApprovalLinkDto> checkout(@RequestBody OrderDto order) {
         return orderFacade.newOrder(order);
     }
 
     // TODO: more payments methods support
     //  for now, I just simulated integration with paypal for example purposes
-    @PostMapping(value = "/success")
-    public Mono<Void> paymentSuccess(@RequestParam String paymentId) {
-        return orderFacade.paymentSucceeded(new PaymentDto(paymentId));
+    @PostMapping(value = "/success", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<Void> paymentSuccess(@RequestBody PaymentDto payment) {
+        return orderFacade.paymentSucceeded(payment);
     }
 
-    @PostMapping(value = "/cancel")
-    public Mono<Void> paymentCancel(@RequestParam String paymentId) {
-        return orderFacade.paymentCanceled(new PaymentDto(paymentId));
+    @PostMapping(value = "/cancel", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Mono<Void> paymentCancel(@RequestBody PaymentDto payment) {
+        return orderFacade.paymentCanceled(payment);
     }
 
 }

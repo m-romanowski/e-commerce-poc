@@ -21,11 +21,12 @@ sealed interface Order permits PendingOrder, SucceededOrder, FailedOrder {
     UUID getId();
     String getUserId();
     BigDecimal getTotal();
+    Long getVersion();
     Set<Product> getProducts();
     OrderEvent toEvent();
 }
 
-record Product(UUID id) {
+record Product(UUID id, Long version) {
 
 }
 
@@ -38,6 +39,7 @@ class PendingOrder implements Order {
     String userId;
     String pendingPaymentId;
     BigDecimal total;
+    Long version;
     Set<Product> products;
 
     static PendingOrder create(Supplier<UUID> idSupplier, String userId, List<OrderProductDetails> products) {
@@ -48,7 +50,7 @@ class PendingOrder implements Order {
             .id(idSupplier.get())
             .userId(userId)
             .total(totalPrice)
-            .products(products.stream().map(productDetails -> new Product(productDetails.getId())).collect(Collectors.toUnmodifiableSet()))
+            .products(products.stream().map(productDetails -> new Product(productDetails.getId(), null)).collect(Collectors.toUnmodifiableSet()))
             .build();
     }
 
@@ -95,6 +97,11 @@ class SucceededOrder implements Order {
     }
 
     @Override
+    public Long getVersion() {
+        return pendingOrder.getVersion();
+    }
+
+    @Override
     public Set<Product> getProducts() {
         return pendingOrder.getProducts();
     }
@@ -124,6 +131,11 @@ class FailedOrder implements Order {
     @Override
     public BigDecimal getTotal() {
         return pendingOrder.getTotal();
+    }
+
+    @Override
+    public Long getVersion() {
+        return pendingOrder.getVersion();
     }
 
     @Override

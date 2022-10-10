@@ -19,9 +19,10 @@ class Invoice {
     String userId;
     @NonNull
     Instant createdAt;
+    Long version;
 
     static Invoice create(UUID orderId, String userId, Instant currentTime) {
-        return new Invoice(UUID.randomUUID(), orderId, userId, currentTime);
+        return new Invoice(UUID.randomUUID(), orderId, userId, currentTime, null);
     }
 
 }

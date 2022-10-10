@@ -9,11 +9,14 @@ import lombok.experimental.FieldDefaults;
 import lombok.val;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
+import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import javax.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.util.Set;
 import java.util.UUID;
@@ -28,8 +31,8 @@ interface OrderCrudRepository extends ReactiveCrudRepository<OrderEntity, UUID> 
     Mono<OrderEntity> findByPaymentId(String id);
 }
 
-interface OrderProductsCrudRepository extends ReactiveCrudRepository<OrderProductsEntity, UUID> {
-    Flux<OrderProductsEntity> findAllByOrderId(UUID orderId);
+interface OrderProductsCrudRepository extends ReactiveCrudRepository<ProductEntity, UUID> {
+    Flux<ProductEntity> findAllByOrderId(UUID orderId);
 }
 
 // TODO: R2DBC doesnt support relationships (https://github.com/spring-projects/spring-data-r2dbc/issues/356), its a workaround to saving "many"
@@ -43,10 +46,11 @@ class R2DBCOrderRepository implements OrderRepository {
     OrderProductsCrudRepository orderProductsCrudRepository;
 
     @Override
+    @Transactional
     public Mono<Order> save(Order order) {
         return Mono.defer(() ->
             Flux.fromIterable(order.getProducts())
-                .flatMap(product -> orderProductsCrudRepository.save(new OrderProductsEntity(UUID.randomUUID(), order.getId(), product.id())))
+                .flatMap(product -> orderProductsCrudRepository.save(ProductEntity.from(order.getId(), product)))
                 .collectList()
                 .flatMap(ignored -> orderCrudRepository.save(OrderEntity.from(order)))
                 .map(OrderEntity::toOrder)
@@ -61,10 +65,7 @@ class R2DBCOrderRepository implements OrderRepository {
                     orderProductsCrudRepository.findAllByOrderId(orderEntity.getId())
                         .collectList()
                         .flatMap(orderProducts -> {
-                            val productsIds = orderProducts.stream()
-                                .map(ProductEntity::from)
-                                .collect(Collectors.toUnmodifiableSet());
-                            orderEntity.setProducts(productsIds);
+                            orderEntity.setProducts(orderProducts.stream().collect(Collectors.toUnmodifiableSet()));
                             return Mono.just(orderEntity);
                         })
                 )
@@ -81,14 +82,18 @@ class R2DBCOrderRepository implements OrderRepository {
 class ProductEntity {
 
     @Id
-    UUID id;
+    private UUID id;
+    @NotNull
+    @Column(value = "order_id")
+    private UUID orderId;
+    private Long version;
 
-    static ProductEntity from(OrderProductsEntity orderProducts) {
-        return new ProductEntity(orderProducts.getProductId());
+    static ProductEntity from(UUID orderId, Product product) {
+        return new ProductEntity(product.id(), orderId, product.version());
     }
 
     Product toProduct() {
-        return new Product(id);
+        return new Product(id, version);
     }
 
 }
@@ -101,10 +106,15 @@ class OrderEntity {
 
     @Id
     private UUID id;
+    @Column(value = "user_id")
     private String userId;
+    @NotNull
     private BigDecimal total;
+    @NotNull
     private OrderStatus status;
+    @Column(value = "payment_id")
     private String paymentId;
+    private Long version;
     @Transient
     private Set<ProductEntity> products;
 
@@ -131,6 +141,7 @@ class OrderEntity {
             order.getTotal(),
             getStatusFor(order),
             getPaymentIdFor(order),
+            order.getVersion(),
             Set.of()
         );
     }
@@ -139,7 +150,7 @@ class OrderEntity {
         val productsCollection = products.stream()
             .map(ProductEntity::toProduct)
             .collect(Collectors.toUnmodifiableSet());
-        val pendingOrder = PendingOrder.from(id, userId, paymentId, total, productsCollection);
+        val pendingOrder = PendingOrder.from(id, userId, paymentId, total, version, productsCollection);
         return switch (status) {
             case PENDING -> pendingOrder;
             case SUCCEEDED -> new SucceededOrder(pendingOrder, paymentId);
@@ -152,18 +163,5 @@ class OrderEntity {
         SUCCEEDED,
         FAILED
     }
-
-}
-
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Table(name = "order_product")
-class OrderProductsEntity {
-
-    @Id
-    UUID id;
-    UUID orderId;
-    UUID productId;
 
 }
