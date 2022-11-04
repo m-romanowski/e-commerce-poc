@@ -29,7 +29,7 @@ public class OrderCreated implements OrderEvent {
 
     @Override
     public String getVersion() {
-        return TYPE_NAME;
+        return VERSION;
     }
 
 }

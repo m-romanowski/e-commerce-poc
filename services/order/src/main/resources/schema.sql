@@ -1,10 +1,11 @@
 CREATE TABLE IF NOT EXISTS "order"
 (
-    id         UUID    NOT NULL,
+    id         UUID         NOT NULL,
     user_id    VARCHAR(255),
-    total      DECIMAL NOT NULL,
-    status     INTEGER NOT NULL,
-    payment_id VARCHAR(255),
+    total      DECIMAL      NOT NULL,
+    status     VARCHAR(255) NOT NULL,
+    payment_id VARCHAR(255) NOT NULL,
+    version    BIGINT,
     CONSTRAINT pk_orderentity PRIMARY KEY (id)
 );
 
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS product
 (
     id       UUID NOT NULL,
     order_id UUID NOT NULL,
+    version  BIGINT,
     CONSTRAINT pk_orderproductsentity PRIMARY KEY (id)
 );
 
@@ -29,6 +31,7 @@ CREATE TABLE IF NOT EXISTS invoice
     id         UUID                        NOT NULL,
     order_id   UUID                        NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    version    BIGINT,
     CONSTRAINT pk_invoiceentity PRIMARY KEY (id)
 );
 

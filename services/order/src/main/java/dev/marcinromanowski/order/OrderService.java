@@ -66,15 +66,13 @@ class OrderService {
         return orderRepository.findByPaymentId(paymentId)
             .flatMap(order -> {
                 if (order instanceof PendingOrder pendingOrder) {
-                    return Mono.just(pendingOrder.succeeded(paymentId));
+                    return Mono.just(pendingOrder.succeeded());
                 }
 
                 return Mono.error(new OrderInconsistencyStateException(order.getId()));
             })
-            .flatMap(order ->
-                orderRepository.save(order)
-                    .flatMap(savedOrder -> orderOutboxRepository.save(savedOrder.toEvent()).then(Mono.just(savedOrder)))
-            )
+            .flatMap(orderRepository::save)
+            .flatMap(order -> orderOutboxRepository.save(order.toEvent()).then(Mono.just(order)))
             .map(order -> new OrderDetailsDto(order.getId(), order.getUserId()))
             .flatMap(invoiceFacade::createInvoiceFor);
     }

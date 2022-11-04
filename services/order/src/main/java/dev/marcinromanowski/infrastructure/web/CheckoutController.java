@@ -11,12 +11,12 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(name = "/api/v1/checkout")
+@RequestMapping(value = "/api/v1/checkout")
 public class CheckoutController {
 
     private final OrderFacade orderFacade;
 
-    @PostMapping(value = "/", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/new", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     public Mono<ApprovalLinkDto> checkout(@RequestBody OrderDto order) {
         return orderFacade.newOrder(order);
     }

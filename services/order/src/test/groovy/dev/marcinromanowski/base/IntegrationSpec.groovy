@@ -1,5 +1,6 @@
 package dev.marcinromanowski.base
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import dev.marcinromanowski.OrderApplication
 import dev.marcinromanowski.common.Profiles
 import dev.marcinromanowski.testcontainers.KafkaConnectContainer
@@ -12,8 +13,12 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.context.annotation.Primary
+import org.springframework.http.MediaType
+import org.springframework.http.codec.json.Jackson2JsonDecoder
+import org.springframework.http.codec.json.Jackson2JsonEncoder
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
+import org.springframework.web.reactive.function.client.WebClient
 import org.testcontainers.containers.Network
 import spock.lang.Shared
 import spock.lang.Specification
@@ -59,7 +64,7 @@ abstract class IntegrationSpec extends Specification implements ClockFixture, Mo
                                 "mode"                          : "incrementing",
                                 "numeric.mapping"               : "best_fit",
                                 "incrementing.column.name"      : "id",
-                                "query"                         : "SELECT id, payload FROM public.order_outbox",
+                                "query"                         : "SELECT id, key, payload FROM public.order_outbox",
                                 "dialect.name"                  : "PostgreSqlDatabaseDialect",
                                 "transforms"                    : "createKey,extractKey,extractValue",
                                 "transforms.createKey.type"     : "org.apache.kafka.connect.transforms.ValueToKey",
@@ -89,7 +94,7 @@ abstract class IntegrationSpec extends Specification implements ClockFixture, Mo
                                 "mode"                          : "incrementing",
                                 "numeric.mapping"               : "best_fit",
                                 "incrementing.column.name"      : "id",
-                                "query"                         : "SELECT id, payload FROM public.invoice_outbox",
+                                "query"                         : "SELECT id, key, payload FROM public.invoice_outbox",
                                 "dialect.name"                  : "PostgreSqlDatabaseDialect",
                                 "transforms"                    : "createKey,extractKey,extractValue",
                                 "transforms.createKey.type"     : "org.apache.kafka.connect.transforms.ValueToKey",
@@ -144,6 +149,16 @@ abstract class IntegrationSpec extends Specification implements ClockFixture, Mo
         @Primary
         Clock testClock() {
             return new MutableClock()
+        }
+
+        @Bean
+        @Primary
+        WebClient.Builder testWebclientBuilder(ObjectMapper objectMapper) {
+            return WebClient.builder()
+                    .codecs(configurer -> {
+                        configurer.defaultCodecs().jackson2JsonEncoder(new Jackson2JsonEncoder(objectMapper, MediaType.APPLICATION_JSON))
+                        configurer.defaultCodecs().jackson2JsonDecoder(new Jackson2JsonDecoder(objectMapper, MediaType.APPLICATION_JSON))
+                    })
         }
 
         @Bean

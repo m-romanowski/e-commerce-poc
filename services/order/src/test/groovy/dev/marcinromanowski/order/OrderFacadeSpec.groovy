@@ -25,6 +25,7 @@ class OrderFacadeSpec extends Specification {
     private static final UUID ORDER_ID = UUID.randomUUID()
     private static final String PAYMENT_ID = UUID.randomUUID().toString()
     private static final String APPROVAL_LINK = UUID.randomUUID().toString()
+    private static final Long VERSION = 1L
 
     private OrderFacade orderFacade
     private OrderRepository orderRepository
@@ -55,11 +56,11 @@ class OrderFacadeSpec extends Specification {
             1 * productFacade.validateProducts([productId] as Set) >> Flux.just(new ValidatedProduct(productId, "Product name", 2.0))
             1 * orderRepository.save({ PendingOrder pendingOrder ->
                 pendingOrder.id == ORDER_ID
-                        && pendingOrder.pendingPaymentId == PAYMENT_ID
+                        && pendingOrder.paymentId == PAYMENT_ID
                         && pendingOrder.total == 4.0
                         && pendingOrder.products.size() == 1
                         && pendingOrder.products[0].id() == productId
-            }) >> Mono.just(PendingOrder.from(ORDER_ID, userId, PAYMENT_ID, 4.0, [new Product(productId)] as Set))
+            }) >> Mono.just(pendingOrderFor(ORDER_ID, userId, PAYMENT_ID, 4.0, [productFor(productId)] as Set))
             1 * orderOutboxRepository.save({ OrderCreated orderCreated ->
                 orderCreated.id == ORDER_ID
                         && orderCreated.userId == userId
@@ -79,9 +80,9 @@ class OrderFacadeSpec extends Specification {
 
     def "The order status should be changed after successfully payment"() {
         when:
-            def pendingOrder = PendingOrder.from(ORDER_ID, userId, PAYMENT_ID, 4.0, [new Product(UUID.randomUUID())] as Set)
+            def pendingOrder = pendingOrderFor(ORDER_ID, userId, PAYMENT_ID, 4.0, [productFor(UUID.randomUUID())] as Set)
             1 * orderRepository.findByPaymentId(PAYMENT_ID) >> Mono.just(pendingOrder)
-            1 * orderRepository.save(_ as SucceededOrder) >> Mono.just(new SucceededOrder(pendingOrder, PAYMENT_ID))
+            1 * orderRepository.save(_ as SucceededOrder) >> Mono.just(new SucceededOrder(pendingOrder))
             1 * orderOutboxRepository.save({ OrderSucceeded event -> event.id && event.paymentId == PAYMENT_ID }) >> Mono.just(new OrderSucceeded(ORDER_ID, PAYMENT_ID))
             1 * invoiceFacade.createInvoiceFor({ OrderDetailsDto orderDetails ->
                 orderDetails.id() == ORDER_ID
@@ -95,7 +96,7 @@ class OrderFacadeSpec extends Specification {
 
     def "The order status should be changed after payment failure or cancellation"() {
         when:
-            def pendingOrder = PendingOrder.from(ORDER_ID, userId, PAYMENT_ID, 4.0, [new Product(UUID.randomUUID())] as Set)
+            def pendingOrder = pendingOrderFor(ORDER_ID, userId, PAYMENT_ID, 4.0, [productFor(UUID.randomUUID())] as Set)
             1 * orderRepository.findByPaymentId(PAYMENT_ID) >> Mono.just(pendingOrder)
             1 * orderRepository.save({ Order order -> order instanceof FailedOrder }) >> Mono.just(new FailedOrder(pendingOrder))
             1 * orderOutboxRepository.save({ OrderFailed event -> event.id }) >> Mono.just(new OrderFailed(ORDER_ID))
@@ -117,8 +118,8 @@ class OrderFacadeSpec extends Specification {
 
         where:
             orderState << [
-                    new SucceededOrder(PendingOrder.from(ORDER_ID, "user", PAYMENT_ID, 1.0, [new Product(UUID.randomUUID())] as Set), PAYMENT_ID),
-                    new FailedOrder(PendingOrder.from(ORDER_ID, "user", PAYMENT_ID, 1.0, [new Product(UUID.randomUUID())] as Set))
+                    new SucceededOrder(pendingOrderFor(ORDER_ID, "user", PAYMENT_ID, 1.0, [productFor(UUID.randomUUID())] as Set)),
+                    new FailedOrder(pendingOrderFor(ORDER_ID, "user", PAYMENT_ID, 1.0, [productFor(UUID.randomUUID())] as Set))
             ]
     }
 
@@ -133,8 +134,8 @@ class OrderFacadeSpec extends Specification {
 
         where:
             orderState << [
-                    new SucceededOrder(PendingOrder.from(ORDER_ID, "user", PAYMENT_ID, 1.0, [new Product(UUID.randomUUID())] as Set), PAYMENT_ID),
-                    new FailedOrder(PendingOrder.from(ORDER_ID, "user", PAYMENT_ID, 1.0, [new Product(UUID.randomUUID())] as Set))
+                    new SucceededOrder(pendingOrderFor(ORDER_ID, "user", PAYMENT_ID, 1.0, [productFor(UUID.randomUUID())] as Set)),
+                    new FailedOrder(pendingOrderFor(ORDER_ID, "user", PAYMENT_ID, 1.0, [productFor(UUID.randomUUID())] as Set))
             ]
     }
 
@@ -156,6 +157,14 @@ class OrderFacadeSpec extends Specification {
                     .expectSubscription()
                     .expectError(IllegalOrderStateException)
                     .verify(BLOCK_TIME)
+    }
+
+    private static Product productFor(UUID id) {
+        return new Product(id, VERSION)
+    }
+
+    private static PendingOrder pendingOrderFor(UUID orderId, String userId, String paymentId, BigDecimal total, Set<Product> products) {
+        return PendingOrder.from(orderId, userId, paymentId, total, products, VERSION)
     }
 
 }

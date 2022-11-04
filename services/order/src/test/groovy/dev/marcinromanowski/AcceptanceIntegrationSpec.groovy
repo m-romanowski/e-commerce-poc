@@ -8,10 +8,10 @@ import dev.marcinromanowski.base.MockedProductsService
 import dev.marcinromanowski.base.RandomizerFixture
 import dev.marcinromanowski.order.dto.OrderDto
 import org.apache.http.client.utils.URIBuilder
+import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.WebTestClient
 import org.springframework.web.reactive.function.BodyInserters
-import spock.lang.Ignore
 
 import static dev.marcinromanowski.base.PredefinedPollingConditions.WAIT
 import static org.mockito.ArgumentMatchers.argThat
@@ -29,7 +29,6 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
     }
 
     // TODO: Test payment cancellation happy path
-    @Ignore(value = "FIXME: It's weird endpoint error. It always returns 404 status code")
     def "Orders acceptance test"() {
         given: "mocked products validation response"
             def firstProduct = new OrderDto.ProductDto(UUID.randomUUID(), 1)
@@ -54,6 +53,7 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
                 verify(orderEventsConsumer).consumed(argThat({ String event ->
                     def parsedEvent = JsonPath.parse(event)
                     return parsedEvent.read('$.type') == "OrderCreated"
+                            && parsedEvent.read('$.version') == "1.0"
                             && parsedEvent.read('$.id') != null
                             && parsedEvent.read('$.userId') == userId
                             && parsedEvent.read('$.total') == 3.0
@@ -72,16 +72,17 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
                 verify(orderEventsConsumer).consumed(argThat({ String event ->
                     def parsedEvent = JsonPath.parse(event)
                     return parsedEvent.read('$.type') == "OrderSucceeded"
-                            && parsedEvent.read('$.paymentId') != null
+                            && parsedEvent.read('$.version') == "1.0"
+                            && parsedEvent.read('$.paymentId') == paymentId
                 }))
             }
-
         and: "user's invoice is generated"
         and: "user's invoice details are sent as event"
             WAIT.eventually {
-                verify(orderEventsConsumer).consumed(argThat({ String event ->
+                verify(invoiceEventsConsumer).consumed(argThat({ String event ->
                     def parsedEvent = JsonPath.parse(event)
                     return parsedEvent.read('$.type') == "InvoiceCreated"
+                            && parsedEvent.read('$.version') == "1.0"
                             && parsedEvent.read('$.id') != null
                             && parsedEvent.read('$.orderId') != null
                             && parsedEvent.read('$.createdAt') != null
@@ -90,7 +91,7 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
     }
 
     private static String getRequestParamFrom(String uri, String requestParam) {
-        return new URIBuilder(uri).getQueryParams().find { it.value == requestParam }
+        return new URIBuilder(uri).getQueryParams().find { it.name == requestParam }?.value
     }
 
     private static String productAsJson(OrderDto.ProductDto product) {
@@ -122,8 +123,8 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
     private WebTestClient.ResponseSpec createNewOrder(OrderDto order) {
         return webTestClient
                 .post()
-                .uri("/api/v1/checkout")
-                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .uri("/api/v1/checkout/new")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(newOrderAsJson(order)))
                 .exchange()
@@ -133,7 +134,7 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
         return webTestClient
                 .post()
                 .uri("/api/v1/checkout/success")
-                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(paymentDetailsAsJson(paymentId)))
                 .exchange()
@@ -143,7 +144,7 @@ class AcceptanceIntegrationSpec extends IntegrationSpec implements MockedProduct
         return webTestClient
                 .post()
                 .uri("/api/v1/checkout/cancel")
-                .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(BodyInserters.fromValue(paymentDetailsAsJson(paymentId)))
                 .exchange()

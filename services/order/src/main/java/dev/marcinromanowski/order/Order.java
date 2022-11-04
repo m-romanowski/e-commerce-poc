@@ -21,6 +21,7 @@ sealed interface Order permits PendingOrder, SucceededOrder, FailedOrder {
     UUID getId();
     String getUserId();
     BigDecimal getTotal();
+    String getPaymentId();
     Long getVersion();
     Set<Product> getProducts();
     OrderEvent toEvent();
@@ -37,10 +38,10 @@ class PendingOrder implements Order {
 
     UUID id;
     String userId;
-    String pendingPaymentId;
+    String paymentId;
     BigDecimal total;
-    Long version;
     Set<Product> products;
+    Long version;
 
     static PendingOrder create(Supplier<UUID> idSupplier, String userId, List<OrderProductDetails> products) {
         val totalPrice = products.stream()
@@ -56,12 +57,12 @@ class PendingOrder implements Order {
 
     PendingOrder withPendingPayment(String paymentId) {
         return this.toBuilder()
-            .pendingPaymentId(paymentId)
+            .paymentId(paymentId)
             .build();
     }
 
-    SucceededOrder succeeded(String paymentId) {
-        return new SucceededOrder(this, paymentId);
+    SucceededOrder succeeded() {
+        return new SucceededOrder(this);
     }
 
     FailedOrder failed() {
@@ -79,7 +80,6 @@ class PendingOrder implements Order {
 class SucceededOrder implements Order {
 
     PendingOrder pendingOrder;
-    String paymentId;
 
     @Override
     public UUID getId() {
@@ -97,6 +97,11 @@ class SucceededOrder implements Order {
     }
 
     @Override
+    public String getPaymentId() {
+        return pendingOrder.getPaymentId();
+    }
+
+    @Override
     public Long getVersion() {
         return pendingOrder.getVersion();
     }
@@ -108,7 +113,7 @@ class SucceededOrder implements Order {
 
     @Override
     public OrderEvent toEvent() {
-        return new OrderSucceeded(getId(), paymentId);
+        return new OrderSucceeded(getId(), getPaymentId());
     }
 
 }
@@ -131,6 +136,11 @@ class FailedOrder implements Order {
     @Override
     public BigDecimal getTotal() {
         return pendingOrder.getTotal();
+    }
+
+    @Override
+    public String getPaymentId() {
+        return pendingOrder.getPaymentId();
     }
 
     @Override

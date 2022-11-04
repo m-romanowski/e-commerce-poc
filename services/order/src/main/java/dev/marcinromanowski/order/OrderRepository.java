@@ -9,6 +9,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.val;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
@@ -52,7 +53,11 @@ class R2DBCOrderRepository implements OrderRepository {
             Flux.fromIterable(order.getProducts())
                 .flatMap(product -> orderProductsCrudRepository.save(ProductEntity.from(order.getId(), product)))
                 .collectList()
-                .flatMap(ignored -> orderCrudRepository.save(OrderEntity.from(order)))
+                .flatMap(orderProducts -> orderCrudRepository.save(OrderEntity.from(order))
+                    .map(orderEntity -> {
+                        orderEntity.setProducts(orderProducts.stream().collect(Collectors.toUnmodifiableSet()));
+                        return orderEntity;
+                    }))
                 .map(OrderEntity::toOrder)
         );
     }
@@ -86,6 +91,7 @@ class ProductEntity {
     @NotNull
     @Column(value = "order_id")
     private UUID orderId;
+    @Version
     private Long version;
 
     static ProductEntity from(UUID orderId, Product product) {
@@ -101,7 +107,7 @@ class ProductEntity {
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "order")
+@Table(name = "\"order\"")
 class OrderEntity {
 
     @Id
@@ -111,9 +117,10 @@ class OrderEntity {
     @NotNull
     private BigDecimal total;
     @NotNull
-    private OrderStatus status;
+    private String status;
     @Column(value = "payment_id")
     private String paymentId;
+    @Version
     private Long version;
     @Transient
     private Set<ProductEntity> products;
@@ -126,21 +133,13 @@ class OrderEntity {
         };
     }
 
-    private static String getPaymentIdFor(Order order) {
-        if (order instanceof SucceededOrder succeededOrder) {
-            return succeededOrder.getPaymentId();
-        }
-
-        return null;
-    }
-
     static OrderEntity from(Order order) {
         return new OrderEntity(
             order.getId(),
             order.getUserId(),
             order.getTotal(),
-            getStatusFor(order),
-            getPaymentIdFor(order),
+            getStatusFor(order).name(),
+            order.getPaymentId(),
             order.getVersion(),
             Set.of()
         );
@@ -150,10 +149,10 @@ class OrderEntity {
         val productsCollection = products.stream()
             .map(ProductEntity::toProduct)
             .collect(Collectors.toUnmodifiableSet());
-        val pendingOrder = PendingOrder.from(id, userId, paymentId, total, version, productsCollection);
-        return switch (status) {
+        val pendingOrder = PendingOrder.from(id, userId, paymentId, total, productsCollection, version);
+        return switch (OrderStatus.valueOf(status)) {
             case PENDING -> pendingOrder;
-            case SUCCEEDED -> new SucceededOrder(pendingOrder, paymentId);
+            case SUCCEEDED -> new SucceededOrder(pendingOrder);
             case FAILED -> new FailedOrder(pendingOrder);
         };
     }

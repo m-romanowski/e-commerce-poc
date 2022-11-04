@@ -7,6 +7,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.ConsumerRecords
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.common.IsolationLevel
 
 import java.time.Duration
 import java.util.concurrent.Executors
@@ -40,7 +41,7 @@ class TestKafkaConsumers implements Closeable, Runnable {
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
         props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000")
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
-        props.put(ConsumerConfig.DEFAULT_ISOLATION_LEVEL, "read_committed")
+        props.put(ConsumerConfig.DEFAULT_ISOLATION_LEVEL, IsolationLevel.READ_COMMITTED.toString())
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer")
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer")
         return props
@@ -53,15 +54,15 @@ class TestKafkaConsumers implements Closeable, Runnable {
         }
 
         kafkaConsumer.subscribe(topics)
-        scheduledExecutorService.schedule(() -> {
+        scheduledExecutorService.scheduleAtFixedRate(() -> {
             ConsumerRecords<String, String> records = kafkaConsumer.poll(POLL_TIMEOUT)
             records.each { ConsumerRecord<String, String> record ->
                 log.info("Consumed record. Key: {}, Value:", record.key(), JsonOutput.prettyPrint(record.value()))
                 MockConsumers.getMockConsumers(record.topic()).each {
-                    it.consumed(record.key(), record.value())
+                    it.consumed(record.value())
                 }
             }
-        }, POLL_INTERVAL.toMillis(), TimeUnit.MILLISECONDS)
+        }, 0L, POLL_INTERVAL.toMillis(), TimeUnit.MILLISECONDS)
     }
 
     @Override
