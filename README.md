@@ -1,5 +1,7 @@
 # e-commerce-poc
 
+It's a proof of concept (PoC) of e-commerce system based on microservices architecture using asynchronous communication.
+
 ## Problem
 
 Your company is selling digital games in an online store. The storefront is getting a lot of traffic,
