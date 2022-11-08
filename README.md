@@ -44,7 +44,8 @@ Minuses
 ### Used architecture
 
 I decided to propose solution based on microservices architecture. We can independently scale our services
-depending on the traffic. Services are designed using `Database per service` pattern.
+depending on the traffic. Services are designed using `Database per service` pattern, `CQRS` with `Event Sourcing` for the read models and
+`Transactional outbox` for events propagation - one transaction between our business (command) logic and events storage.
 
 ### Proposed solution
 
@@ -72,11 +73,31 @@ Height abstraction to send notifications, e-mails, sms to users
 
 ### Tech-stack
 
+#### Services
+
 It is true that the microservices architecture allows the use of an independent technology stack, but I decided to use
 a Spring Boot framework. There was information in the description of our problem about huge traffic. In the initial phase
 of implementation, I was thinking about use `Spring WebFlux` and prepare solution in a reactive paradigm. It turned out
 that `R2DBC` [doesn't support relationship](https://github.com/spring-projects/spring-data-r2dbc/issues/356), so I stayed
-with `Spring JPA`. It is true that I could manage entities manually by storing columns mapping to id, but in the end I
-stayed with the non-reactive solution keeping the field for optimization - better entity management or solution
-not based on RDBMS. I decided to use PostgreSQL as RDBMS - I just have experience with this database, and it would be
-good for relationships purposes with `Hibernate`.
+with `Spring JPA`. It is true that I could manage entities manually by storing columns mapping to id (an example in `order` service), but
+in the end I stayed with the non-reactive solution keeping the field for optimization - better entity management or solution
+not based on RDBMS.
+
+#### Searching engine
+
+On the beginning of implementation I decided for `Apache Lucene` and integration via `Hibernate Search` library. For non-scalable solution it might be
+enough (indexes are stored locally). On production-ready environment might be better to use cluster solution to store indexes remotely. Applications
+might be scaled regardless of the number of instances. `Apache Solr` is enough for static searching I think (`Elasticsearch` and `Apache Solr` uses
+the same backend engine - `Apache Lucene`). In the final solution, we would have to consider whether we would be able to take advantage of the
+benefits of the schemaless `Elasticsearch` like data visualisation or some more complex grouping and aggregation. We need to keep in mind
+that `Hibernate Search` with `Elasticsearch` backend has some [limitations](https://docs.jboss.org/hibernate/search/5.6/reference/en-US/html/ch11.html#__anchor_xml_id_elasticsearch_limitations_xreflabel_elasticsearch_limitations_limitations)
+at the moment.
+
+#### Databases
+
+I decided to use PostgreSQL as RDBMS - I just have experience with this database, and it would be good for relationships purposes with `Hibernate`.
+
+#### Message bus
+
+Messages bus is built with `Kafka` and read models via `Event Sourcing` using `Kafka Streams`. I used `Kafka Connect` to write events to the `Kafka`
+topics from the `Transactional outbox` RDBMS' tables.
