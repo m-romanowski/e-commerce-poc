@@ -5,15 +5,16 @@ import spock.lang.Specification
 
 class RegistrationSpec extends Specification {
 
-    private static final String VALID_EMAIL = ""
-    private static final String VALID_PASSWORD = ""
+    private static final String VALID_EMAIL = "abc@example.com"
+    private static final String VALID_PASSWORD = "very_StrongP4\$sword"
 
     def "An 'registration' should be successfully created for valid email"() {
         when:
-            def registration = Registration.create(email, VALID_PASSWORD.toCharArray())
+            def emailValidation = new EmailValidation(email)
+            def registration = Registration.create(email, VALID_PASSWORD.toCharArray(), new ValidationRules().with(emailValidation))
         then:
             verifyAll(registration) {
-                registration.email == VALID_EMAIL
+                registration.email == email
                 registration.password == VALID_PASSWORD.toCharArray()
             }
 
@@ -23,27 +24,22 @@ class RegistrationSpec extends Specification {
                     "abc-d@example.com",
                     "abc.def@example.com",
                     "abc_def@example.com",
-                    "test/test@example.com",
-                    "admin@example",
-                    """"><script>alert(1);</script>"@example.com""",
-                    "user+subaddress@example.com",
-                    "user@[IPv6:2001:db8::1]",
-                    """" "@example.com"""
+                    "user+subaddress@example.com"
             ]
     }
 
     def "An error should be thrown for invalid email format"() {
         when:
-            Registration.create(email, VALID_PASSWORD.toCharArray())
+            def emailValidation = new EmailValidation(email)
+            Registration.create(email, VALID_PASSWORD.toCharArray(), new ValidationRules().with(emailValidation))
         then:
             def e = thrown(RegistrationValidationException)
-            e.message.containsIgnoreCase("registration doesn't pass validation rules")
+            e.message.containsIgnoreCase("registration data doesn't pass validation rules")
 
         where:
             email << [
                     null,
                     "",
-                    "abc-@example.com",
                     "abc..def@example.com",
                     ".abc@example.com",
                     "abc#def@example.com",
@@ -51,14 +47,14 @@ class RegistrationSpec extends Specification {
                     "A@b@c@example.com",
                     """a"b(c)d,e:f;g<h>i[j\\k]l@example.com""",
                     """just"not"right@example.com""",
-                    "1234567890123456789012345678901234567890123456789012345678901234+x@example.com",
                     "i_like_underscore@but_its_not_allowed_in_this_part.example.com"
             ]
     }
 
     def "An 'registration' should be successfully created for valid password"() {
         when:
-            def registration = Registration.create(VALID_EMAIL, "very_StrongP4\$sword".toCharArray())
+            def passwordValidation = new PasswordValidation(VALID_PASSWORD.toCharArray())
+            def registration = Registration.create(VALID_EMAIL, VALID_PASSWORD.toCharArray(), new ValidationRules().with(passwordValidation))
         then:
             verifyAll(registration) {
                 registration.email == VALID_EMAIL
@@ -68,10 +64,12 @@ class RegistrationSpec extends Specification {
 
     def "An error should be thrown for invalid password format"() {
         when:
-            Registration.create(VALID_EMAIL, password?.toCharArray())
+            def passwordArr = password?.toCharArray() ?: null
+            def passwordValidation = new PasswordValidation(passwordArr)
+            Registration.create(VALID_EMAIL, passwordArr, new ValidationRules().with(passwordValidation))
         then:
             def e = thrown(RegistrationValidationException)
-            e.message.containsIgnoreCase("registration doesn't pass validation rules")
+            e.message.containsIgnoreCase("registration data doesn't pass validation rules")
 
         where:
             password << [
